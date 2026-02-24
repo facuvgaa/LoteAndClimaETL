@@ -1,45 +1,10 @@
-# Pipeline ETL — Rinde & Clima (AWS)
+# Pipeline ETL — Lote & Clima (AWS)
 
 Pipeline de ingesta y transformación de datos agronómicos usando arquitectura medallion (Bronze → Silver → Gold) sobre AWS, orquestado con Step Functions y procesado con Glue Jobs.
 
 ## Arquitectura
 
-```
-EventBridge (schedule / manual)
-         │
-         ▼
-   ┌─────────────┐
-   │ Step Function│
-   └──────┬──────┘
-          │
-          ├─── Parallel ──────────────────┐
-          │                               │
-   ┌──────▼──────┐                ┌───────▼──────┐
-   │ Glue Job 1  │                │ Glue Job 1   │
-   │ Ingest Rinde│                │ Ingest Clima │
-   │ CSV → Bronze│                │ CSV → Bronze │
-   └──────┬──────┘                └───────┬──────┘
-          │                               │
-          ├─── Parallel ──────────────────┐
-          │                               │
-   ┌──────▼──────┐                ┌───────▼──────┐
-   │ Glue Job 2  │                │ Glue Job 2   │
-   │ Clean Rinde │                │ Clean Clima  │
-   │ Bronze→Silv.│                │ Bronze→Silv. │
-   └──────┬──────┘                └───────┬──────┘
-          │                               │
-          └───────────┬───────────────────┘
-                      │
-               ┌──────▼──────┐
-               │ Glue Job 3  │
-               │ Join + Gold │
-               └──────┬──────┘
-                      │
-               ┌──────▼──────┐
-               │   Athena    │
-               │  (BI/SQL)   │
-               └─────────────┘
-```
+![Diagrama de arquitectura](image/diagrama.png)
 
 ## Capas de datos (Medallion)
 
@@ -48,7 +13,7 @@ EventBridge (schedule / manual)
 | **Raw** | `s3://bucket/raw/` | CSV | Archivos originales sin modificar |
 | **Bronze** | `s3://bucket/bronze/` | Parquet | Datos crudos convertidos, particionados por campaña |
 | **Silver** | `s3://bucket/silver/` | Parquet | Datos limpios, validados, sin duplicados. Particionados por campaña + lote |
-| **Gold** | `s3://bucket/gold/` | Parquet | Join rinde+clima con métricas calculadas. Consumo BI |
+| **Gold** | `s3://bucket/gold/` | Parquet | Join lote+clima con métricas calculadas. Consumo BI |
 
 ## Estructura del proyecto
 
@@ -68,9 +33,9 @@ EventBridge (schedule / manual)
 Los contratos en `contracts/` definen de forma declarativa el schema esperado, tipos, rangos válidos, % de nulos aceptable y claves únicas para cada dataset. La validación en `src/validate.py` y `src/quality.py` consume estos contratos, desacoplando las reglas de negocio del código.
 
 ```yaml
-# Ejemplo: contracts/rinde_lotes.yaml
+# Ejemplo: contracts/lote_lotes.yaml
 schema:
-  - name: rinde_kg_ha
+  - name: lote_kg_ha
     type: numeric
     min: 0
     max: 25000
