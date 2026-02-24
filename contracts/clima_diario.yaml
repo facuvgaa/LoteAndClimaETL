@@ -1,0 +1,52 @@
+name: clima_diario
+version: "1.0"
+owner: equipo-clima
+description: Variables climáticas diarias por lote
+
+schema:
+  - name: fecha
+    type: date
+    format: "%Y-%m-%d"
+    nullable: false
+
+  - name: lote
+    type: string
+    nullable: false
+
+  - name: temp_max
+    type: numeric
+    nullable: true
+    min: -20
+    max: 55
+
+  - name: temp_min
+    type: numeric
+    nullable: true
+    min: -30
+    max: 45
+
+  - name: precipitacion_mm
+    type: numeric
+    nullable: true
+    min: 0
+    max: 500
+
+  - name: humedad_pct
+    type: numeric
+    nullable: true
+    min: 0
+    max: 100
+
+quality:
+  max_null_pct: 10
+  unique_keys: ["fecha", "lote"]
+  date_range:
+    min: "2020-01-01"
+    max: "2026-12-31"
+
+partitioning:
+  keys: ["lote"]
+
+sla:
+  freshness: daily
+  max_delay_hours: 12

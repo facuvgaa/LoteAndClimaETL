@@ -1,0 +1,148 @@
+{
+  "step_function_role": {
+    "description": "Role for the Step Function state machine",
+    "policies": [
+      {
+        "effect": "Allow",
+        "actions": [
+          "glue:StartJobRun",
+          "glue:GetJobRun",
+          "glue:GetJobRuns",
+          "glue:BatchStopJobRun"
+        ],
+        "resources": [
+          "arn:aws:glue:*:*:job/ingest_bronze",
+          "arn:aws:glue:*:*:job/clean_silver",
+          "arn:aws:glue:*:*:job/join_gold"
+        ]
+      }
+    ]
+  },
+
+  "glue_job_ingest_bronze_role": {
+    "description": "Role for Glue Job 1 (ingest CSV to bronze Parquet)",
+    "policies": [
+      {
+        "effect": "Allow",
+        "actions": ["s3:GetObject"],
+        "resources": ["arn:aws:s3:::${BUCKET}/raw/*"]
+      },
+      {
+        "effect": "Allow",
+        "actions": ["s3:PutObject", "s3:DeleteObject"],
+        "resources": ["arn:aws:s3:::${BUCKET}/bronze/*"]
+      },
+      {
+        "effect": "Allow",
+        "actions": ["s3:ListBucket"],
+        "resources": ["arn:aws:s3:::${BUCKET}"]
+      },
+      {
+        "effect": "Allow",
+        "actions": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "resources": ["arn:aws:logs:*:*:/aws-glue/*"]
+      }
+    ]
+  },
+
+  "glue_job_clean_silver_role": {
+    "description": "Role for Glue Job 2 (clean + DQ from bronze to silver)",
+    "policies": [
+      {
+        "effect": "Allow",
+        "actions": ["s3:GetObject"],
+        "resources": ["arn:aws:s3:::${BUCKET}/bronze/*"]
+      },
+      {
+        "effect": "Allow",
+        "actions": ["s3:PutObject", "s3:DeleteObject"],
+        "resources": ["arn:aws:s3:::${BUCKET}/silver/*"]
+      },
+      {
+        "effect": "Allow",
+        "actions": ["s3:ListBucket"],
+        "resources": ["arn:aws:s3:::${BUCKET}"]
+      },
+      {
+        "effect": "Allow",
+        "actions": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "resources": ["arn:aws:logs:*:*:/aws-glue/*"]
+      }
+    ]
+  },
+
+  "glue_job_join_gold_role": {
+    "description": "Role for Glue Job 3 (join + metrics from silver to gold)",
+    "policies": [
+      {
+        "effect": "Allow",
+        "actions": ["s3:GetObject"],
+        "resources": ["arn:aws:s3:::${BUCKET}/silver/*"]
+      },
+      {
+        "effect": "Allow",
+        "actions": ["s3:PutObject", "s3:DeleteObject"],
+        "resources": ["arn:aws:s3:::${BUCKET}/gold/*"]
+      },
+      {
+        "effect": "Allow",
+        "actions": ["s3:ListBucket"],
+        "resources": ["arn:aws:s3:::${BUCKET}"]
+      },
+      {
+        "effect": "Allow",
+        "actions": [
+          "glue:GetTable",
+          "glue:UpdateTable",
+          "glue:CreatePartition",
+          "glue:BatchCreatePartition",
+          "glue:GetPartition",
+          "glue:GetPartitions"
+        ],
+        "resources": [
+          "arn:aws:glue:*:*:catalog",
+          "arn:aws:glue:*:*:database/${DATABASE}",
+          "arn:aws:glue:*:*:table/${DATABASE}/*"
+        ]
+      },
+      {
+        "effect": "Allow",
+        "actions": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "resources": ["arn:aws:logs:*:*:/aws-glue/*"]
+      }
+    ]
+  },
+
+  "s3_bucket_policy": {
+    "description": "S3 bucket security settings",
+    "settings": {
+      "block_public_access": true,
+      "versioning": true,
+      "encryption": "SSE-S3",
+      "lifecycle_rules": [
+        {
+          "prefix": "raw/",
+          "transition_to_ia_days": 30,
+          "transition_to_glacier_days": 90
+        },
+        {
+          "prefix": "bronze/",
+          "transition_to_ia_days": 60,
+          "transition_to_glacier_days": 180
+        }
+      ]
+    }
+  }
+}

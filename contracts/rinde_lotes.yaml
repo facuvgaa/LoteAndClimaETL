@@ -1,0 +1,48 @@
+name: rinde_lotes
+version: "1.0"
+owner: equipo-agronomia
+description: Rendimiento de cultivos por lote y campaña
+
+schema:
+  - name: campaña
+    type: string
+    nullable: false
+
+  - name: lote
+    type: string
+    nullable: false
+
+  - name: cultivo
+    type: string
+    nullable: false
+    allowed_values: ["soja", "maíz", "trigo", "girasol", "cebada"]
+
+  - name: rinde_kg_ha
+    type: numeric
+    nullable: true
+    min: 0
+    max: 25000
+
+  - name: superficie_ha
+    type: numeric
+    nullable: false
+    min: 0
+
+  - name: fecha_cosecha
+    type: date
+    format: "%Y-%m-%d"
+    nullable: false
+
+quality:
+  max_null_pct: 5
+  unique_keys: ["campaña", "lote", "fecha_cosecha"]
+  date_range:
+    min: "2020-01-01"
+    max: "2026-12-31"
+
+partitioning:
+  keys: ["campaña", "lote"]
+
+sla:
+  freshness: daily
+  max_delay_hours: 24

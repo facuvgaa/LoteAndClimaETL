@@ -1,0 +1,176 @@
+{
+  "Comment": "Pipeline ETL: CSV -> Bronze -> Silver -> Gold (medallion architecture)",
+  "StartAt": "IngestBronze",
+  "States": {
+    "IngestBronze": {
+      "Type": "Parallel",
+      "Comment": "Ingest both datasets into bronze/ in parallel",
+      "Branches": [
+        {
+          "StartAt": "IngestRinde",
+          "States": {
+            "IngestRinde": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "ingest_bronze",
+                "Arguments": {
+                  "--BUCKET.$": "$.bucket",
+                  "--DATASET": "rinde_lotes",
+                  "--CAMPANA.$": "$.campana"
+                }
+              },
+              "End": true,
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "StartAt": "IngestClima",
+          "States": {
+            "IngestClima": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "ingest_bronze",
+                "Arguments": {
+                  "--BUCKET.$": "$.bucket",
+                  "--DATASET": "clima_diario",
+                  "--CAMPANA.$": "$.campana"
+                }
+              },
+              "End": true,
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "Next": "CleanSilver",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "CleanSilver": {
+      "Type": "Parallel",
+      "Comment": "Clean + DQ both datasets into silver/ in parallel",
+      "InputPath": "$",
+      "Branches": [
+        {
+          "StartAt": "CleanRinde",
+          "States": {
+            "CleanRinde": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "clean_silver",
+                "Arguments": {
+                  "--BUCKET.$": "$$.Execution.Input.bucket",
+                  "--DATASET": "rinde_lotes",
+                  "--CAMPANA.$": "$$.Execution.Input.campana"
+                }
+              },
+              "End": true,
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "StartAt": "CleanClima",
+          "States": {
+            "CleanClima": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "clean_silver",
+                "Arguments": {
+                  "--BUCKET.$": "$$.Execution.Input.bucket",
+                  "--DATASET": "clima_diario",
+                  "--CAMPANA.$": "$$.Execution.Input.campana"
+                }
+              },
+              "End": true,
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "Next": "JoinGold",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "JoinGold": {
+      "Type": "Task",
+      "Comment": "Join rinde + clima and compute metrics in gold/",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "join_gold",
+        "Arguments": {
+          "--BUCKET.$": "$$.Execution.Input.bucket",
+          "--CAMPANA.$": "$$.Execution.Input.campana"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "PipelineSucceeded",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+
+    "PipelineSucceeded": {
+      "Type": "Succeed"
+    },
+
+    "PipelineFailed": {
+      "Type": "Fail",
+      "Error": "PipelineExecutionFailed",
+      "Cause": "One or more Glue Jobs failed. Check CloudWatch logs."
+    }
+  }
+}
